@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>קונים או חוסכים?</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            direction: rtl;
+            background-color: #f0f8ff;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            font-size: 36px;
+            margin-bottom: 20px;
+        }
+        #game-container {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            display: inline-block;
+            width: 100%;
+            max-width: 600px;
+        }
+        button {
+            font-size: 18px;
+            padding: 12px 20px;
+            margin: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            transition: background-color 0.3s ease;
+        }
+        .roll-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        .roll-btn:hover {
+            background-color: #218838;
+        }
+        .buy-btn {
+            background-color: #dc3545;
+            color: white;
+            display: none;
+        }
+        .buy-btn:hover {
+            background-color: #c82333;
+        }
+        .save-btn {
+            background-color: #007bff;
+            color: white;
+            display: none;
+        }
+        .save-btn:hover {
+            background-color: #0056b3;
+        }
+        #result {
+            font-size: 20px;
+            margin: 20px;
+            font-weight: bold;
+            color: #333;
+        }
+        #money, #rounds {
+            font-size: 22px;
+            font-weight: bold;
+            color: #007bff;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>קונים או חוסכים?</h1>
+    <div id="game-container">
+        <p>לחץ על הכפתור כדי לגלגל קובייה</p>
+        <button class="roll-btn" onclick="rollDice()">🎲 גלגל קובייה</button>
+        <p id="result"></p>
+        <button class="buy-btn" onclick="buyItem()">🛒 קנה</button>
+        <button class="save-btn" onclick="saveMoney()">💰 חסוך</button>
+        <p id="money">כסף שנשאר: 100 ש"ח</p>
+        <p id="rounds">סיבוב: 1 מתוך 5</p>
+    </div>
+
+    <script>
+        let money = 100;
+        let round = 1;
+        let cost = 0;
+        let maxRounds = 5;
+
+        function rollDice() {
+            if (round > maxRounds) {
+                return;
+            }
+
+            let dice = Math.floor(Math.random() * 6) + 1;
+            let message = "";
+
+            document.querySelector(".buy-btn").style.display = "none";
+            document.querySelector(".save-btn").style.display = "none";
+
+            if (dice === 1 || dice === 2) {
+                cost = (dice === 1) ? 10 : 30;
+                message = `פיתוי לקנות! (${cost} ש"ח)`;
+                document.querySelector(".buy-btn").style.display = "inline-block";
+                document.querySelector(".save-btn").style.display = "inline-block";
+            } else if (dice === 3 || dice === 4) {
+                let earn = (dice === 3) ? 20 : 30;
+                message = `הרווחת ${earn} ש"ח!`;
+                money += earn;
+            } else {
+                message = "בונוס חיסכון! הרווחת 10 ש"ח.";
+                money += 10;
+            }
+
+            document.getElementById("result").innerText = message;
+            updateUI();
+        }
+
+        function buyItem() {
+            if (money >= cost) {
+                money -= cost;
+                document.getElementById("result").innerText = `קנית מוצר ב-${cost} ש"ח!`;
+            } else {
+                document.getElementById("result").innerText = "אין לך מספיק כסף!";
+            }
+            nextRound();
+        }
+
+        function saveMoney() {
+            document.getElementById("result").innerText = "בחרת לחסוך!";
+            nextRound();
+        }
+
+        function nextRound() {
+            round++;
+            updateUI();
+            if (round > maxRounds) {
+                document.getElementById("result").innerText = `המשחק נגמר! נשאר לך ${money} ש"ח.`;
+                document.querySelector(".roll-btn").style.display = "none";
+                document.querySelector(".buy-btn").style.display = "none";
+                document.querySelector(".save-btn").style.display = "none";
+            }
+        }
+
+        function updateUI() {
+            document.getElementById("money").innerText = `כסף שנשאר: ${money} ש"ח`;
+            document.getElementById("rounds").innerText = `סיבוב: ${round} מתוך 5`;
+        }
+    </script>
+
+</body>
+</html>
