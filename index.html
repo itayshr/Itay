@@ -29,6 +29,7 @@
 <body>
 
     <h1>מערכת שעות - אילו ספרים לקחת</h1>
+    
     <label for="day">בחר יום:</label>
     <select id="day">
         <option value="ראשון">ראשון</option>
@@ -37,7 +38,10 @@
         <option value="רביעי">רביעי</option>
         <option value="חמישי">חמישי</option>
     </select>
+    
     <button onclick="getBooks()">בדוק</button>
+    <button onclick="addMamram()">הוסף ממר״ם</button>
+    <button onclick="removeMamram()">הסר ממר״ם</button>
 
     <div id="result"></div>
 
@@ -64,6 +68,7 @@
             let resultText = `
                 <p>ספרים להוציא מהתיק: ${removeBooks.length > 0 ? removeBooks.join(", ") : "אין"}</p>
                 <p>ספרים להכניס לתיק: ${addBooks.length > 0 ? addBooks.join(", ") : "אין"}</p>
+                <p><strong>📚 ספרים שצריכים להיות בתיק:</strong> ${todaySubjects.join(", ")}</p>
             `;
 
             document.getElementById("result").innerHTML = resultText;
@@ -74,8 +79,23 @@
             let index = days.indexOf(currentDay);
             return index > 0 ? days[index - 1] : days[days.length - 1];
         }
+
+        function addMamram() {
+            if (!schedule["שני"].includes("ממר״ם")) {
+                schedule["שני"].push("ממר״ם");
+            }
+            if (!schedule["חמישי"].includes("ממר״ם")) {
+                schedule["חמישי"].push("ממר״ם");
+            }
+            getBooks(); // לבדוק מחדש לאחר ההוספה
+        }
+
+        function removeMamram() {
+            schedule["שני"] = schedule["שני"].filter(subject => subject !== "ממר״ם");
+            schedule["חמישי"] = schedule["חמישי"].filter(subject => subject !== "ממר״ם");
+            getBooks(); // לבדוק מחדש לאחר ההסרה
+        }
     </script>
 
 </body>
 </html>
-      
