@@ -14,7 +14,7 @@
         h1 {
             color: #333;
         }
-        select, button {
+        select, button, input {
             padding: 10px;
             margin: 10px;
             font-size: 16px;
@@ -28,24 +28,45 @@
 </head>
 <body>
 
-    <h1>מערכת שעות - אילו ספרים לקחת</h1>
-    
-    <label for="day">בחר יום:</label>
-    <select id="day">
-        <option value="ראשון">ראשון</option>
-        <option value="שני">שני</option>
-        <option value="שלישי">שלישי</option>
-        <option value="רביעי">רביעי</option>
-        <option value="חמישי">חמישי</option>
-    </select>
-    
-    <button onclick="getBooks()">בדוק</button>
-    <button onclick="addMamram()">הוסף ממר״ם</button>
-    <button onclick="removeMamram()">הסר ממר״ם</button>
+    <h1 id="welcome-message">ברוך הבא!</h1>
 
-    <div id="result"></div>
+    <div id="auth-section">
+        <h2>הרשמה או התחברות</h2>
+        <label for="username">שם משתמש:</label>
+        <input type="text" id="username" placeholder="הכנס שם משתמש">
+        
+        <br>
+
+        <label>האם להוסיף "ממר״ם" לימי שני וחמישי?</label>
+        <input type="radio" name="mamram" value="yes" checked> כן
+        <input type="radio" name="mamram" value="no"> לא
+
+        <br>
+        
+        <button onclick="registerOrLogin()">אישור</button>
+    </div>
+
+    <div id="main-content" style="display:none;">
+        <h2>מערכת שעות - אילו ספרים לקחת</h2>
+
+        <label for="day">בחר יום:</label>
+        <select id="day">
+            <option value="ראשון">ראשון</option>
+            <option value="שני">שני</option>
+            <option value="שלישי">שלישי</option>
+            <option value="רביעי">רביעי</option>
+            <option value="חמישי">חמישי</option>
+        </select>
+
+        <button onclick="getBooks()">בדוק</button>
+
+        <div id="result"></div>
+    </div>
 
     <script>
+        let includeMamram = true;
+        let currentUser = null;
+
         const schedule = {
             "ראשון": ["ערבית", "מדעים", "מתמטיקה", "תרבות ישראל"],
             "שני": ["בישול ואפייה", "חינוך", "שיעור ספורט", "מדעים", "מתמטיקה"],
@@ -53,6 +74,50 @@
             "רביעי": ["בישול ואפייה", "שיעור ספורט", "מדעים", "אנגלית"],
             "חמישי": ["אנגלית", "מתמטיקה", "עברית", "מדעים"]
         };
+
+        // פונקציה להרשמה או התחברות
+        function registerOrLogin() {
+            let username = document.getElementById("username").value.trim();
+            let mamramChoice = document.querySelector('input[name="mamram"]:checked').value;
+
+            if (!username) {
+                alert("אנא הכנס שם משתמש.");
+                return;
+            }
+
+            // הגדרת האם להוסיף ממר״ם
+            includeMamram = mamramChoice === "yes";
+
+            // בדוק אם המשתמש קיים ב-localStorage
+            let storedUser = localStorage.getItem(username);
+
+            if (!storedUser) {
+                // הרשמה חדשה
+                let userData = { mamram: includeMamram };
+                localStorage.setItem(username, JSON.stringify(userData));
+                alert("ההרשמה הצליחה!");
+            } else {
+                // התחברות עם מידע קיים
+                let userData = JSON.parse(storedUser);
+                includeMamram = userData.mamram;
+                alert("התחברת בהצלחה!");
+            }
+
+            // עדכון הממשק
+            document.getElementById("welcome-message").innerText = `ברוך הבא, ${username}!`;
+            document.getElementById("auth-section").style.display = "none";
+            document.getElementById("main-content").style.display = "block";
+
+            // אם נבחר להוסיף "ממר״ם", נוסיף אותו למערכת השעות
+            if (includeMamram) {
+                if (!schedule["שני"].includes("ממר״ם")) {
+                    schedule["שני"].push("ממר״ם");
+                }
+                if (!schedule["חמישי"].includes("ממר״ם")) {
+                    schedule["חמישי"].push("ממר״ם");
+                }
+            }
+        }
 
         function getBooks() {
             let daySelect = document.getElementById("day");
@@ -78,22 +143,6 @@
             const days = ["ראשון", "שני", "שלישי", "רביעי", "חמישי"];
             let index = days.indexOf(currentDay);
             return index > 0 ? days[index - 1] : days[days.length - 1];
-        }
-
-        function addMamram() {
-            if (!schedule["שני"].includes("ממר״ם")) {
-                schedule["שני"].push("ממר״ם");
-            }
-            if (!schedule["חמישי"].includes("ממר״ם")) {
-                schedule["חמישי"].push("ממר״ם");
-            }
-            getBooks(); // לבדוק מחדש לאחר ההוספה
-        }
-
-        function removeMamram() {
-            schedule["שני"] = schedule["שני"].filter(subject => subject !== "ממר״ם");
-            schedule["חמישי"] = schedule["חמישי"].filter(subject => subject !== "ממר״ם");
-            getBooks(); // לבדוק מחדש לאחר ההסרה
         }
     </script>
 
