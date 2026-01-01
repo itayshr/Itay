@@ -8,8 +8,8 @@ import asyncio
 ROLE_ADD_ID = 1449415392425410662    
 ROLE_REMOVE_ID = 1449424721862201414 
 WELCOME_CHANNEL_ID = 1449406834032250931 
-TICKET_CATEGORY_ID = 123456789012345678  # החלף ב-ID של הקטגוריה לטיקטים
-STAFF_ROLE_ID = 123456789012345678       # החלף ב-ID של רול הצוות
+TICKET_CATEGORY_ID = 1449393406529769533  # החלף ב-ID של הקטגוריה לטיקטים
+STAFF_ROLE_ID = 1449226054022594560       # החלף ב-ID של רול הצוות
 
 intents = discord.Intents.default()
 intents.members = True          
