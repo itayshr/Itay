@@ -4,88 +4,62 @@ from discord.ui import Button, View
 import os
 
 # --- הגדרות ה-ID שלך ---
-ROLE_ADD_ID = 1449415392425410662    
-WELCOME_CHANNEL_ID = 1449406834032250931 
-TICKET_CATEGORY_ID = 1456352365295829133 # הקטגוריה שבה ייפתח הטיקט
+ROLE_ADD_ID = 1449415392425410662    # רול אזרח
+ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
+WELCOME_CHANNEL_ID = 1449406834032250931 # ה-ID החדש ששלחת
 
 intents = discord.Intents.default()
 intents.members = True          
 intents.message_content = True  
 
-# --- מערכת טיקטים פשוטה (רק כפתור) ---
-class TicketView(View):
-    def __init__(self):
-        super().__init__(timeout=None)
-    
-    @discord.ui.button(label="פתח טיקט 🎫", style=discord.ButtonStyle.blurple, custom_id="simple_ticket_btn")
-    async def open_ticket(self, interaction: discord.Interaction, button: Button):
-        guild = interaction.guild
-        category = guild.get_channel(TICKET_CATEGORY_ID)
-        
-        # אישור ראשוני כדי למנוע Failed
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            # יצירת חדר פרטי
-            ticket_channel = await guild.create_text_channel(
-                name=f"ticket-{interaction.user.name}",
-                category=category,
-                overwrites={
-                    guild.default_role: discord.PermissionOverwrite(view_channel=False),
-                    interaction.user: discord.PermissionOverwrite(view_channel=True, send_messages=True, embed_links=True),
-                    guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True, manage_channels=True)
-                }
-            )
-            
-            embed = discord.Embed(
-                title="טיקט חדש",
-                description=f"שלום {interaction.user.mention},\nתודה שפנית לצוות השרת. נא לכתוב את פנייתך כאן.",
-                color=0x5865f2
-            )
-            await ticket_channel.send(content=f"{interaction.user.mention} | @here", embed=embed)
-            await interaction.followup.send(f"הטיקט נפתח כאן: {ticket_channel.mention}", ephemeral=True)
-        except Exception as e:
-            await interaction.followup.send("שגיאה: וודא שלבוט יש הרשאת 'Manage Channels'.", ephemeral=True)
-
-# --- מערכת אימות ---
+# --- מערכת כפתור האימות ---
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
-    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_simple")
+
+    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me")
     async def verify(self, interaction: discord.Interaction, button: Button):
-        role = interaction.guild.get_role(ROLE_ADD_ID)
-        if role:
-            await interaction.user.add_roles(role)
+        role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
+        role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
+        
+        try:
+            await interaction.user.add_roles(role_to_add)
+            if role_to_remove and role_to_remove in interaction.user.roles:
+                await interaction.user.remove_roles(role_to_remove)
             await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
+        except:
+            await interaction.response.send_message("שגיאה: וודא שהרול של הבוט מעל כולם בהגדרות השרת.", ephemeral=True)
 
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
     async def setup_hook(self):
         self.add_view(VerifyView())
-        self.add_view(TicketView())
     async def on_ready(self):
         print(f'Logged in as {self.user.name}')
 
 bot = MyBot()
 
+# --- מערכת הודעת ברוכים הבאים (Embed) ---
 @bot.event
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
-        embed = discord.Embed(title=f"ברוך הבא {member.name}", description="שמחים שהצטרפת!", color=0x7289da)
+        count = len(member.guild.members)
+        embed = discord.Embed(
+            title=f"{member.name} - Welcome",
+            description=f"Hey {member.mention}, Welcome to **{member.guild.name}**! We're **{count}** members now.",
+            color=0x7289da 
+        )
         embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text=f"Dev: {bot.user.name} • Today at {discord.utils.utcnow().strftime('%H:%M')}")
         await channel.send(embed=embed)
 
+# --- פקודה ליצירת הודעת האימות ---
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def setup_ticket(ctx):
-    embed = discord.Embed(title="פתיחת טיקט", description="לחצו על הכפתור למטה כדי לפתוח פנייה לצוות.", color=0x5865f2)
-    await ctx.send(embed=embed, view=TicketView())
-
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def setup_verify(ctx):
-    await ctx.send(embed=discord.Embed(title="אימות", description="לחצו לאימות", color=0x00ff00), view=VerifyView())
+async def setup(ctx):
+    embed = discord.Embed(title="אימות שרת", description="לחצו למטה כדי לקבל גישה לשרת", color=0x00ff00)
+    await ctx.send(embed=embed, view=VerifyView())
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
