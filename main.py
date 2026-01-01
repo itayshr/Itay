@@ -3,18 +3,20 @@ from discord.ext import commands
 from discord.ui import Button, View
 import os
 
-# הגדרות - תבדוק שה-ID האלה נכונים אצלך!
-ROLE_ADD_ID = 1449415392425410662    # רול אזרח
-ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
+# --- הגדרות - שנה רק את ה-ID כאן! ---
+ROLE_ADD_ID = 1449415392425410662    # ID של רול אזרח
+ROLE_REMOVE_ID = 1449424721862201414 # ID של רול Unverified
+WELCOME_CHANNEL_ID = 1234567890      # <--- שים כאן את ה-ID של ערוץ הברוכים הבאים שלך!
 
-# כאן היה חסר התיקון!
+# הגדרת הרשאות (Intents)
 intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True # השורה הזו מאפשרת לבוט לקרוא את הפקודה !setup
+intents.members = True          # חובה בשביל ברוכים הבאים ורולים
+intents.message_content = True  # חובה בשביל פקודת !setup
 
+# --- מחלקת הכפתור לאימות ---
 class VerifyView(View):
     def __init__(self):
-        super().__init__(timeout=None)
+        super().__init__(timeout=None) # גורם לכפתור לעבוד תמיד
 
     @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me")
     async def verify(self, interaction: discord.Interaction, button: Button):
@@ -22,42 +24,54 @@ class VerifyView(View):
         role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
         
         try:
-            # בדיקה אם הרולים קיימים בשרת
-            if not role_to_add:
-                await interaction.response.send_message("שגיאה: רול אזרח לא נמצא. וודא שה-ID נכון.", ephemeral=True)
-                return
-
             await interaction.user.add_roles(role_to_add)
             if role_to_remove and role_to_remove in interaction.user.roles:
                 await interaction.user.remove_roles(role_to_remove)
-            await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
+            await interaction.response.send_message("אומתת בהצלחה! תהנה בשרת.", ephemeral=True)
         except discord.Forbidden:
-            await interaction.response.send_message("שגיאה: לבוט אין הרשאות לנהל רולים. גרור את הרול שלו לראש הרשימה!", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"שגיאה לא צפויה: {e}", ephemeral=True)
+            await interaction.response.send_message("שגיאה: לבוט אין הרשאה. וודא שהרול שלו מעל כולם!", ephemeral=True)
+        except Exception:
+            await interaction.response.send_message("קרתה שגיאה לא צפויה בתהליך האימות.", ephemeral=True)
 
+# --- הגדרת הבוט ---
 class MyBot(commands.Bot):
     def __init__(self):
-        # הגדרת פקודת prefix
         super().__init__(command_prefix="!", intents=intents)
-    
+
     async def setup_hook(self):
-        # גורם לכפתור להמשיך לעבוד גם אחרי שהבוט עושה ריסטארט
+        # מחבר מחדש את הכפתור בזיכרון בכל הפעלה
         self.add_view(VerifyView())
 
     async def on_ready(self):
-        print(f'Logged in as {self.user.name}')
+        print(f'Logged in as {self.user.name} | Systems: Verify & Welcome Active')
 
 bot = MyBot()
 
+# --- אירוע ברוכים הבאים ---
+@bot.event
+async def on_member_join(member):
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        count = len(member.guild.members)
+        embed = discord.Embed(
+            title=f"{member.name} - Welcome",
+            description=f"Hey {member.mention}, Welcome to **{member.guild.name}**! We're **{count}** members now.",
+            color=0x7289da # צבע כחול
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        embed.set_footer(text=f"Dev: {bot.user.name} • Today at {discord.utils.utcnow().strftime('%H:%M')}")
+        await channel.send(embed=embed)
+
+# --- פקודת Setup לאימות ---
 @bot.command()
-@commands.has_permissions(administrator=True) # רק מנהל יכול להריץ את זה
+@commands.has_permissions(administrator=True)
 async def setup(ctx):
     embed = discord.Embed(
         title="אימות שרת", 
-        description="ברוכים הבאים! לחצו על הכפתור למטה כדי לקבל גישה לשרת.", 
+        description="ברוכים הבאים לשרת! \nכדי לקבל גישה לערוצים, לחצו על הכפתור הירוק למטה.", 
         color=0x00ff00
     )
     await ctx.send(embed=embed, view=VerifyView())
 
+# הרצת הבוט עם הטוקן מ-Railway
 bot.run(os.environ.get('DISCORD_TOKEN'))
