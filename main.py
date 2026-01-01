@@ -1,14 +1,15 @@
 import discord
 from discord.ext import commands
-from discord.ui import Button, View
+from discord.ui import Button, View, Select
 import os
+import asyncio
 
-# --- הגדרות ה-ID שלך (תמלא את ה-ID החסר) ---
+# --- הגדרות ה-ID שלך ---
 ROLE_ADD_ID = 1449415392425410662    
 ROLE_REMOVE_ID = 1449424721862201414 
 WELCOME_CHANNEL_ID = 1449406834032250931 
-TICKET_CATEGORY_ID = 123456789012345678  # <--- חשוב: תחליף ב-ID של הקטגוריה שבה ייפתחו הטיקטים
-STAFF_ROLE_ID = 123456789012345678       # <--- חשוב: תחליף ב-ID של רול המנהלים/צוות
+TICKET_CATEGORY_ID = 123456789012345678  # החלף ב-ID של הקטגוריה לטיקטים
+STAFF_ROLE_ID = 123456789012345678       # החלף ב-ID של רול הצוות
 
 intents = discord.Intents.default()
 intents.members = True          
@@ -21,29 +22,31 @@ class CloseTicketView(View):
 
     @discord.ui.button(label="סגור טיקט 🔒", style=discord.ButtonStyle.red, custom_id="close_ticket")
     async def close(self, interaction: discord.Interaction, button: Button):
-        await interaction.response.send_message("הערוץ יימחק בעוד 5 שניות...", ephemeral=False)
-        import asyncio
+        await interaction.response.send_message("הערוץ יימחק בעוד 5 שניות...")
         await asyncio.sleep(5)
         await interaction.channel.delete()
 
-# --- מערכת פתיחת טיקט ---
-class TicketView(View):
+# --- תפריט בחירת קטגוריה לטיקט ---
+class TicketDropdown(Select):
     def __init__(self):
-        super().__init__(timeout=None)
+        options = [
+            discord.SelectOption(label="שאלה כללית", emoji="❓", description="פתיחת פנייה לשאלה כללית"),
+            discord.SelectOption(label="תרומה", emoji="💰", description="פתיחת פנייה בנושא תרומות"),
+            discord.SelectOption(label="דיווח על שחקן", emoji="🤷‍♂️", description="דיווח על שחקן שעבר על החוקים"),
+            discord.SelectOption(label="דיווח על חבר צוות", emoji="💂‍♂️", description="דיווח על התנהלות צוות"),
+            discord.SelectOption(label="ערעור על ענישה", emoji="❌", description="ערעור על באן או קיק")
+        ]
+        super().__init__(placeholder="בחר קטגוריה לטיקט...", min_values=1, max_values=1, options=options, custom_id="ticket_select")
 
-    @discord.ui.button(label="פתח פנייה לצוות 📩", style=discord.ButtonStyle.blurple, custom_id="open_ticket")
-    async def open_ticket(self, interaction: discord.Interaction, button: Button):
+    async def callback(self, interaction: discord.Interaction):
         guild = interaction.guild
         user = interaction.user
-        
-        # בדיקה אם יש כבר טיקט פתוח
-        channel_name = f"ticket-{user.name.lower()}".replace(" ", "-")
-        existing_channel = discord.utils.get(guild.channels, name=channel_name)
-        
-        if existing_channel:
-            return await interaction.response.send_message(f"כבר יש לך טיקט פתוח: {existing_channel.mention}", ephemeral=True)
+        category_name = self.values[0]
 
-        # הרשאות לטיקט
+        # יצירת שם ערוץ תקין
+        channel_name = f"{category_name}-{user.name}".lower().replace(" ", "-")
+        
+        # הרשאות
         staff_role = guild.get_role(STAFF_ROLE_ID)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
@@ -53,27 +56,23 @@ class TicketView(View):
         if staff_role:
             overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
-        # יצירת הערוץ
         category = guild.get_channel(TICKET_CATEGORY_ID)
-        try:
-            channel = await guild.create_text_channel(
-                name=channel_name,
-                overwrites=overwrites,
-                category=category
-            )
-            
-            await interaction.response.send_message(f"הטיקט נפתח! {channel.mention}", ephemeral=True)
-            
-            embed = discord.Embed(
-                title="פנייה חדשה",
-                description=f"שלום {user.mention}, צוות השרת יתפנה אליך בהקדם.\nלסגירת הטיקט לחץ על הכפתור למטה.",
-                color=discord.Color.blue()
-            )
-            await channel.send(embed=embed, view=CloseTicketView())
-            
-        except Exception as e:
-            print(e)
-            await interaction.response.send_message("שגיאה ביצירת הטיקט. וודא שלבוט יש הרשאות 'Manage Channels'.", ephemeral=True)
+        channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites, category=category)
+
+        await interaction.response.send_message(f"הטיקט שלך נפתח ב- {channel.mention}", ephemeral=True)
+
+        embed = discord.Embed(
+            title=f"טיקט בנושא: {category_name}",
+            description=f"שלום {user.mention},\nצוות השרת יתפנה אליך בהקדם.\nלסגירת הטיקט לחץ על הכפתור למטה.",
+            color=discord.Color.blue()
+        )
+        await channel.send(embed=embed, view=CloseTicketView())
+
+# --- View שמכיל את התפריט ---
+class TicketView(View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(TicketDropdown())
 
 # --- מערכת אימות ---
 class VerifyView(View):
@@ -90,7 +89,7 @@ class VerifyView(View):
                 await interaction.user.remove_roles(role_to_remove)
             await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
         except:
-            await interaction.response.send_message("שגיאה במתן רול. וודא שהרול של הבוט נמצא מעל הרולים האחרים.", ephemeral=True)
+            await interaction.response.send_message("שגיאה במתן רול.", ephemeral=True)
 
 class MyBot(commands.Bot):
     def __init__(self):
@@ -109,12 +108,16 @@ bot = MyBot()
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup(ctx):
-    # שליחת הודעת אימות
+    # הודעת אימות
     v_embed = discord.Embed(title="אימות שרת", description="לחצו למטה כדי לקבל גישה לשרת", color=0x00ff00)
     await ctx.send(embed=v_embed, view=VerifyView())
     
-    # שליחת הודעת טיקטים
-    t_embed = discord.Embed(title="מערכת תמיכה", description="זקוקים לעזרה? פתחו טיקט וצוות השרת יעזור לכם.", color=discord.Color.blue())
+    # הודעת טיקטים עם התפריט
+    t_embed = discord.Embed(
+        title="מערכת תמיכה",
+        description="זקוקים לעזרה? בחרו את הקטגוריה המתאימה מהתפריט למטה.",
+        color=discord.Color.blue()
+    )
     await ctx.send(embed=t_embed, view=TicketView())
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
