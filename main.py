@@ -8,7 +8,7 @@ from datetime import datetime
 ROLE_ADD_ID = 1449415392425410662    # רול אזרח
 ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
-STATUS_CHANNEL_ID = 1449406834032250931 # ה-ID של הערוץ שבו יופיע הסטטוס החי
+STATUS_CHANNEL_ID = 1450830876643692625 # ה-ID של הערוץ שבו יופיע הסטטוס החי
 
 # --- הגדרות שרת FiveM ---
 FIVE_M_IP = "26.91.191.60"
