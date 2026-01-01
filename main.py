@@ -3,7 +3,6 @@ from discord.ext import commands
 from discord.ui import Button, View, Select
 import os
 import asyncio
-
 # --- הגדרות ה-ID שלך ---
 ROLE_ADD_ID = 1449415392425410662    
 ROLE_REMOVE_ID = 1449424721862201414 
@@ -20,13 +19,16 @@ class CloseTicketView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="סגור טיקט 🔒", style=discord.ButtonStyle.red, custom_id="close_ticket")
+    @discord.ui.button(label="סגור טיקט 🔒", style=discord.ButtonStyle.red, custom_id="close_ticket_btn")
     async def close(self, interaction: discord.Interaction, button: Button):
         await interaction.response.send_message("הערוץ יימחק בעוד 5 שניות...")
         await asyncio.sleep(5)
-        await interaction.channel.delete()
+        try:
+            await interaction.channel.delete()
+        except:
+            pass
 
-# --- תפריט בחירת קטגוריה לטיקט ---
+# --- תפריט בחירת קטגוריה (כמו בתמונה) ---
 class TicketDropdown(Select):
     def __init__(self):
         options = [
@@ -36,14 +38,14 @@ class TicketDropdown(Select):
             discord.SelectOption(label="דיווח על חבר צוות", emoji="💂‍♂️", description="דיווח על התנהלות צוות"),
             discord.SelectOption(label="ערעור על ענישה", emoji="❌", description="ערעור על באן או קיק")
         ]
-        super().__init__(placeholder="בחר קטגוריה לטיקט...", min_values=1, max_values=1, options=options, custom_id="ticket_select")
+        super().__init__(placeholder="...בחר קטגוריה לטיקט", min_values=1, max_values=1, options=options, custom_id="ticket_dropdown_select")
 
     async def callback(self, interaction: discord.Interaction):
         guild = interaction.guild
         user = interaction.user
         category_name = self.values[0]
 
-        # יצירת שם ערוץ תקין
+        # יצירת שם ערוץ
         channel_name = f"{category_name}-{user.name}".lower().replace(" ", "-")
         
         # הרשאות
@@ -51,22 +53,25 @@ class TicketDropdown(Select):
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
-            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
+            guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True, manage_channels=True)
         }
         if staff_role:
             overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
         category = guild.get_channel(TICKET_CATEGORY_ID)
-        channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites, category=category)
+        
+        try:
+            channel = await guild.create_text_channel(name=channel_name, overwrites=overwrites, category=category)
+            await interaction.response.send_message(f"הטיקט שלך נפתח ב- {channel.mention}", ephemeral=True)
 
-        await interaction.response.send_message(f"הטיקט שלך נפתח ב- {channel.mention}", ephemeral=True)
-
-        embed = discord.Embed(
-            title=f"טיקט בנושא: {category_name}",
-            description=f"שלום {user.mention},\nצוות השרת יתפנה אליך בהקדם.\nלסגירת הטיקט לחץ על הכפתור למטה.",
-            color=discord.Color.blue()
-        )
-        await channel.send(embed=embed, view=CloseTicketView())
+            embed = discord.Embed(
+                title=f"טיקט בנושא: {category_name}",
+                description=f"שלום {user.mention},\nצוות השרת יתפנה אליך בהקדם.\nלסגירת הטיקט לחץ על הכפתור למטה.",
+                color=discord.Color.blue()
+            )
+            await channel.send(embed=embed, view=CloseTicketView())
+        except Exception as e:
+            await interaction.response.send_message(f"שגיאה: וודא שלבוט יש הרשאת 'Manage Channels'.", ephemeral=True)
 
 # --- View שמכיל את התפריט ---
 class TicketView(View):
@@ -79,7 +84,7 @@ class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me")
+    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me_btn")
     async def verify(self, interaction: discord.Interaction, button: Button):
         role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
         role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
@@ -89,13 +94,14 @@ class VerifyView(View):
                 await interaction.user.remove_roles(role_to_remove)
             await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
         except:
-            await interaction.response.send_message("שגיאה במתן רול.", ephemeral=True)
+            await interaction.response.send_message("שגיאה במתן רול. וודא שהבוט מעל הרול שאתה מנסה לתת.", ephemeral=True)
 
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
 
     async def setup_hook(self):
+        # חיבור קבוע של הכפתורים והתפריטים למניעת השגיאה בתמונה
         self.add_view(VerifyView())
         self.add_view(TicketView())
         self.add_view(CloseTicketView())
@@ -108,11 +114,14 @@ bot = MyBot()
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup(ctx):
+    # מחיקת הודעת הפקודה
+    await ctx.message.delete()
+
     # הודעת אימות
     v_embed = discord.Embed(title="אימות שרת", description="לחצו למטה כדי לקבל גישה לשרת", color=0x00ff00)
     await ctx.send(embed=v_embed, view=VerifyView())
     
-    # הודעת טיקטים עם התפריט
+    # הודעת טיקטים
     t_embed = discord.Embed(
         title="מערכת תמיכה",
         description="זקוקים לעזרה? בחרו את הקטגוריה המתאימה מהתפריט למטה.",
