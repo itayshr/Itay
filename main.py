@@ -3,17 +3,17 @@ from discord.ext import commands
 from discord.ui import Button, View, Select
 import os
 
-# --- הגדרות ID - חובה למלא נכון! ---
+# --- הגדרות ה-ID שלך ---
 ROLE_ADD_ID = 1449415392425410662    
 ROLE_REMOVE_ID = 1449424721862201414 
 WELCOME_CHANNEL_ID = 1449406834032250931 
-TICKET_CATEGORY_ID = 123456789012345678 # <--- תחליף למספר שהעתקת מהקטגוריה!
+TICKET_CATEGORY_ID = 1456352365295829133 # ה-ID של הקטגוריה ששלחת
 
 intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
+intents.members = True          
+intents.message_content = True  
 
-# --- תפריט בחירת סיבת טיקט ---
+# --- תפריט בחירת סיבת פנייה ---
 class TicketDropdown(Select):
     def __init__(self):
         options = [
@@ -26,15 +26,16 @@ class TicketDropdown(Select):
         super().__init__(placeholder="בחר קטגוריה...", options=options, custom_id="ticket_select")
 
     async def callback(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True) # מונע את השגיאה של Failed
+        # מונע את השגיאה של Interaction Failed
+        await interaction.response.defer(ephemeral=True)
         
         guild = interaction.guild
         category = guild.get_channel(TICKET_CATEGORY_ID)
         
         if not category:
-            return await interaction.followup.send("שגיאה: קטגוריית הטיקטים לא נמצאה. וודא שה-ID נכון.", ephemeral=True)
+            return await interaction.followup.send("שגיאה: קטגוריית הטיקטים לא נמצאה.", ephemeral=True)
 
-        # יצירת הערוץ עם הרשאות פרטיות
+        # יצירת חדר פרטי
         ticket_channel = await guild.create_text_channel(
             name=f"ticket-{interaction.user.name}",
             category=category,
@@ -46,12 +47,12 @@ class TicketDropdown(Select):
         )
         
         embed = discord.Embed(
-            title="טיקט חדש",
-            description=f"היי {interaction.user.mention}, פתחת פנייה בנושא: **{self.values[0]}**.\nנא להמתין למענה מהצוות.",
+            title="פנייה חדשה",
+            description=f"היי {interaction.user.mention}, פתחת טיקט בנושא: **{self.values[0]}**.\nנא להמתין בסבלנות למענה מהצוות.",
             color=0x5865f2
         )
-        await ticket_channel.send(content="@here", embed=embed)
-        await interaction.followup.send(f"הטיקט שלך נפתח כאן: {ticket_channel.mention}", ephemeral=True)
+        await ticket_channel.send(content=f"{interaction.user.mention} | @here", embed=embed)
+        await interaction.followup.send(f"הטיקט נפתח כאן: {ticket_channel.mention}", ephemeral=True)
 
 class TicketView(View):
     def __init__(self):
@@ -59,7 +60,6 @@ class TicketView(View):
     
     @discord.ui.button(label="פתח טיקט 🎫", style=discord.ButtonStyle.blurple, custom_id="open_ticket_btn")
     async def open_ticket(self, interaction: discord.Interaction, button: Button):
-        # שולח את התפריט כהודעה שרק המשתמש רואה
         view = View()
         view.add_item(TicketDropdown())
         await interaction.response.send_message("אנא בחר את סיבת הפנייה:", view=view, ephemeral=True)
@@ -68,7 +68,7 @@ class TicketView(View):
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
-    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me_v2")
+    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me_final")
     async def verify(self, interaction: discord.Interaction, button: Button):
         role = interaction.guild.get_role(ROLE_ADD_ID)
         if role:
@@ -90,15 +90,25 @@ bot = MyBot()
 async def on_member_join(member):
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
-        embed = discord.Embed(title=f"{member.name} - Welcome", description=f"Hey {member.mention}, Welcome to **{member.guild.name}**!", color=0x7289da)
+        count = len(member.guild.members)
+        embed = discord.Embed(
+            title=f"{member.name} - Welcome",
+            description=f"Hey {member.mention}, Welcome to **{member.guild.name}**! We're **{count}** members now.",
+            color=0x7289da
+        )
         embed.set_thumbnail(url=member.display_avatar.url)
         await channel.send(embed=embed)
 
+# --- פקודות setup ---
 @bot.command()
 @commands.has_permissions(administrator=True)
-async def setup_all(ctx):
-    # שולח את שתי המערכות בבת אחת או בנפרד
+async def setup_verify(ctx):
     await ctx.send(embed=discord.Embed(title="אימות שרת", description="לחצו לאימות", color=0x00ff00), view=VerifyView())
-    await ctx.send(embed=discord.Embed(title="פתיחת טיקט", description="לחצו לפתיחת פנייה לצוות", color=0x5865f2), view=TicketView())
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setup_ticket(ctx):
+    embed = discord.Embed(title="פתיחת טיקט", description="לחצו למטה כדי לפתוח פנייה", color=0x5865f2)
+    await ctx.send(embed=embed, view=TicketView())
 
 bot.run(os.environ.get('DISCORD_TOKEN'))
