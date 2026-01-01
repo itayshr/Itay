@@ -4,9 +4,9 @@ from discord.ui import Button, View
 import os
 
 # --- הגדרות ה-ID שלך ---
-ROLE_ADD_ID = 1449415392425410662    # רול אזרח
-ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
-WELCOME_CHANNEL_ID = 1449406834032250931 # ה-ID החדש ששלחת
+ROLE_ADD_ID = 1449415392425410662    # רול אזרח (שמקבלים באימות)
+ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified (שמקבלים בכניסה)
+WELCOME_CHANNEL_ID = 1449406834032250931 
 
 intents = discord.Intents.default()
 intents.members = True          
@@ -33,16 +33,28 @@ class VerifyView(View):
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
+    
     async def setup_hook(self):
         self.add_view(VerifyView())
+        
     async def on_ready(self):
         print(f'Logged in as {self.user.name}')
 
 bot = MyBot()
 
-# --- מערכת הודעת ברוכים הבאים (Embed) ---
+# --- מערכת כניסת משתמש (רול אוטומטי + הודעת ברוכים הבאים) ---
 @bot.event
 async def on_member_join(member):
+    # 1. מתן רול אוטומטי בכניסה (Unverified)
+    initial_role = member.guild.get_role(ROLE_REMOVE_ID)
+    if initial_role:
+        try:
+            await member.add_roles(initial_role)
+            print(f"Assigned {initial_role.name} to {member.name}")
+        except Exception as e:
+            print(f"Error giving role: {e}")
+
+    # 2. שליחת הודעת ה-Embed לערוץ ברוכים הבאים
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
         count = len(member.guild.members)
