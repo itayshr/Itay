@@ -7,7 +7,7 @@ import os
 ROLE_ADD_ID = 1449415392425410662    # רול אזרח
 ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931 
-TICKET_CATEGORY_ID = 123456789012345678 # <--- שים כאן ID של קטגוריה שבה ייפתחו הטיקטים
+TICKET_CATEGORY_ID = 1449393406529769533 # <--- שים כאן ID של קטגוריה שבה ייפתחו הטיקטים
 
 intents = discord.Intents.default()
 intents.members = True
