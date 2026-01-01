@@ -57,7 +57,7 @@ class MyBot(commands.Bot):
 
         # מחפש הודעה קיימת של הבוט כדי לערוך אותה
         async for message in channel.history(limit=20):
-            if message.author == self.user and message.embeds and "Phantom-Israel" in message.embeds[0].title:
+            if message.author == self.user and message.embeds and "BOB-RP" in message.embeds[0].title:
                 await message.edit(embed=embed, view=view)
                 return
 
@@ -78,7 +78,7 @@ class MyBot(commands.Bot):
                 player_list = "*אין שחקנים מחוברים כרגע*"
 
             embed = discord.Embed(
-                title="Phantom-Israel | Serious Roleplay V2",
+                title="BOB-RP | Serious Roleplay V2",
                 description=player_list,
                 color=0xa435f0
             )
@@ -97,7 +97,7 @@ class MyBot(commands.Bot):
         except Exception as e:
             # אם השרת לא מגיב (Offline)
             embed = discord.Embed(
-                title="Phantom-Israel | Status", 
+                title="BOB-RP | Status", 
                 description="🔴 **השרת כרגע לא זמין (OFFLINE)**\nאנא נסו להתחבר מאוחר יותר.", 
                 color=0xff0000
             )
