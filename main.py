@@ -6,7 +6,7 @@ import os
 # --- הגדרות - שנה רק את ה-ID כאן! ---
 ROLE_ADD_ID = 1449415392425410662    # ID של רול אזרח
 ROLE_REMOVE_ID = 1449424721862201414 # ID של רול Unverified
-WELCOME_CHANNEL_ID = 1234567890      # <--- שים כאן את ה-ID של ערוץ הברוכים הבאים שלך!
+WELCOME_CHANNEL_ID = 1449406834032250931      # <--- שים כאן את ה-ID של ערוץ הברוכים הבאים שלך!
 
 # הגדרת הרשאות (Intents)
 intents = discord.Intents.default()
