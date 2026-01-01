@@ -4,15 +4,14 @@ from discord.ui import Button, View
 import os
 
 # --- הגדרות ה-ID שלך ---
-ROLE_ADD_ID = 1449415392425410662    # רול אזרח (שמקבלים באימות)
-ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified (שמקבלים בכניסה)
-WELCOME_CHANNEL_ID = 1449406834032250931 
+ROLE_ADD_ID = 1449415392425410662    
+ROLE_REMOVE_ID = 1449424721862201414 
+WELCOME_CHANNEL_ID = 1449406834032250931  
 
 intents = discord.Intents.default()
 intents.members = True          
 intents.message_content = True  
 
-# --- מערכת כפתור האימות ---
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -42,32 +41,55 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
-# --- מערכת כניסת משתמש (רול אוטומטי + הודעת ברוכים הבאים) ---
+# --- פקודה חדשה: יצירת סטטוס כמו בתמונה ---
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def status(ctx):
+    # יצירת ה-Embed הראשי
+    embed = discord.Embed(
+        title="Phantom-Israel | Serious\nRoleplay V2 | RolePlay - V3",
+        color=0xa435f0 # צבע סגול שתואם לתמונה
+    )
+
+    # הוספת השדות עם האייקונים מהתמונה
+    embed.add_field(name="", value="🐌 **Status:** `ONLINE`", inline=False)
+    embed.add_field(name="", value="👤 **Players:** `2/4`", inline=False)
+    embed.add_field(name="", value="🌟 **Space:** `50%`", inline=False)
+    embed.add_field(name="", value="💼 **IP:** `connect 88.214.55.68`", inline=False)
+
+    # שמות השחקנים (כפי שמופיע בתמונה)
+    embed.description = "**[ID: 1] ben14583' @undefined**\n**[ID: 2] papoch @undefined**"
+
+    # תמונה ראשית (הלוגו הגדול עם המסכה)
+    embed.set_image(url="https://i.imgur.com/uG9Xl9Y.png") # כאן כדאי להעלות את התמונה שלך לקישור ישיר
+    
+    # תמונה קטנה בצד (Thumbnail)
+    embed.set_thumbnail(url="https://i.imgur.com/uG9Xl9Y.png")
+
+    # פוטר (Footer)
+    embed.set_footer(text=f"Dev:Frozen • Today at {discord.utils.utcnow().strftime('%H:%M %p')}")
+
+    # הוספת הכפתור הקטן למטה (כמו ב-Reaction בתמונה)
+    view = View()
+    status_button = Button(label="2/4", emoji="🐌", style=discord.ButtonStyle.blurple, disabled=True)
+    view.add_item(status_button)
+
+    await ctx.send(embed=embed, view=view)
+
+# --- שאר הפונקציות הקיימות שלך (on_member_join, setup) ---
 @bot.event
 async def on_member_join(member):
-    # 1. מתן רול אוטומטי בכניסה (Unverified)
     initial_role = member.guild.get_role(ROLE_REMOVE_ID)
     if initial_role:
-        try:
-            await member.add_roles(initial_role)
-            print(f"Assigned {initial_role.name} to {member.name}")
-        except Exception as e:
-            print(f"Error giving role: {e}")
+        try: await member.add_roles(initial_role)
+        except: pass
 
-    # 2. שליחת הודעת ה-Embed לערוץ ברוכים הבאים
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
-        count = len(member.guild.members)
-        embed = discord.Embed(
-            title=f"{member.name} - Welcome",
-            description=f"Hey {member.mention}, Welcome to **{member.guild.name}**! We're **{count}** members now.",
-            color=0x7289da 
-        )
+        embed = discord.Embed(title=f"{member.name} - Welcome", description=f"Hey {member.mention}, Welcome!", color=0x7289da)
         embed.set_thumbnail(url=member.display_avatar.url)
-        embed.set_footer(text=f"Dev: {bot.user.name} • Today at {discord.utils.utcnow().strftime('%H:%M')}")
         await channel.send(embed=embed)
 
-# --- פקודה ליצירת הודעת האימות ---
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup(ctx):
