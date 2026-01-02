@@ -164,4 +164,4 @@ async def setup_ticket(ctx):
 
 
 # הרצת הבוט
-bot.run('DISCORD_TOKEN')
+bot.run('MTQ1NjMyMTMwNTUyMjczMzA2Nw.GNB54u.u5Gnvjw_xeFx8Wvw7glOKpmv5W1THiuCyV_lmI')
