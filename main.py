@@ -5,7 +5,7 @@ import asyncio
 import os
 from datetime import datetime
 
-# --- הגדרות ה-ID שלך ---
+# --- הגדרות ה-ID שלך (תחליף ב-ID האמיתי שלך) ---
 ROLE_ADD_ID = 1449415392425410662    # רול אזרח
 ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
@@ -24,14 +24,13 @@ class VerifyView(View):
     async def verify(self, interaction: discord.Interaction, button: Button):
         role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
         role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
-
         try:
             await interaction.user.add_roles(role_to_add)
             if role_to_remove and role_to_remove in interaction.user.roles:
                 await interaction.user.remove_roles(role_to_remove)
             await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
         except:
-            await interaction.response.send_message("שגיאה: וודא שהרול של הבוט מעל כולם בהגדרות השרת.", ephemeral=True)
+            await interaction.response.send_message("שגיאה: וודא שהרול של הבוט מעל כולם.", ephemeral=True)
 
 # --- 2. מערכת הטיקטים (Dropdown) ---
 class TicketDropdown(discord.ui.Select):
@@ -43,8 +42,7 @@ class TicketDropdown(discord.ui.Select):
             discord.SelectOption(label="דיווח על חבר צוות", emoji="💂", value="דיווח-צוות"),
             discord.SelectOption(label="ערעור על ענישה", emoji="❌", value="ערעור"),
         ]
-        super().__init__(placeholder="בחר קטגוריה...", min_values=1, max_values=1, options=options,
-                         custom_id="ticket_select")
+        super().__init__(placeholder="בחר קטגוריה...", min_values=1, max_values=1, options=options, custom_id="ticket_select")
 
     async def callback(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -53,7 +51,6 @@ class TicketDropdown(discord.ui.Select):
         clean_user_name = user.name.lower().replace(" ", "-")
         ticket_name = f"{category_value}-{clean_user_name}"
 
-        # בדיקה אם כבר יש טיקט פתוח
         for ch in guild.text_channels:
             if clean_user_name in ch.name and "-" in ch.name:
                 return await interaction.response.send_message(f"כבר יש לך פנייה פתוחה: {ch.mention}", ephemeral=True)
@@ -99,10 +96,8 @@ bot = MyBot()
 async def on_member_join(member):
     initial_role = member.guild.get_role(ROLE_REMOVE_ID)
     if initial_role:
-        try:
-            await member.add_roles(initial_role)
-        except:
-            pass
+        try: await member.add_roles(initial_role)
+        except: pass
     channel = bot.get_channel(WELCOME_CHANNEL_ID)
     if channel:
         count = len(member.guild.members)
@@ -146,6 +141,9 @@ async def setup_ticket(ctx):
 
 # --- הרצה מותאמת ל-Railway ---
 if __name__ == "__main__":
-    # עדיף להשתמש במשתנה סביבה ב-Railway שנקרא DISCORD_TOKEN
-    token = os.getenv('DISCORD_TOKEN') or 'MTQ1NjMyMTMwNTUyMjczMzA2Nw.GNB54u.'
-    bot.run(token)
+    # הבוט יחפש משתנה סביבה בשם DISCORD_TOKEN
+    token = os.getenv('DISCORD_TOKEN')
+    if token:
+        bot.run(token)
+    else:
+        print("ERROR: No token found! Add DISCORD_TOKEN to Railway Variables.")
