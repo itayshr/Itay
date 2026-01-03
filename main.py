@@ -11,12 +11,12 @@ ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
 LOG_CHANNEL_ID = 1456694146583498792  
 
-# רשימת ה-ID של 4 הרולים של הצוות (תחליף ב-ID האמיתיים שלך)
+# רשימת ה-ID של רולי הצוות
 STAFF_ROLES_IDS = [
-    1457032202071314674, # רול צוות 1
-    1456711448284631253, # רול צוות 2
-    1457036541254828065, # רול צוות 3
-    1457029203328368833  # רול צוות 4
+    1457032202071314674, # sa
+    1456711448284631253, # ad
+    1457036541254828065, # mod
+    1457029203328368833  # hp
 ]
 
 intents = discord.Intents.default()
@@ -57,27 +57,44 @@ class TicketDropdown(discord.ui.Select):
         guild = interaction.guild
         user = interaction.user
         category_value = self.values[0]
-        clean_user_name = user.name.lower().replace(" ", "-")
-        ticket_name = f"{category_value}-{clean_user_name}"
+        
+        # לוגיקת קידומת לפי רול (SA | , AD | , וכו')
+        prefix = ""
+        user_role_ids = [role.id for role in user.roles]
+        
+        if 1457032202071314674 in user_role_ids:
+            prefix = "SA | "
+        elif 1456711448284631253 in user_role_ids:
+            prefix = "AD | "
+        elif 1457036541254828065 in user_role_ids:
+            prefix = "MOD | "
+        elif 1457029203328368833 in user_role_ids:
+            prefix = "HP | "
 
+        # ניקוי השם ויצירת שם הערוץ
+        # דיסקורד הופך את זה אוטומטית לקטנות ומחליף רווחים במקפים
+        clean_name = f"{prefix}{user.name}".lower().replace(" ", "-")
+        ticket_name = f"{category_value}-{clean_name}"
+
+        # בדיקה אם כבר יש טיקט פתוח (לפי שם המשתמש)
         for ch in guild.text_channels:
-            if clean_user_name in ch.name and "-" in ch.name:
+            if user.name.lower().replace(" ", "-") in ch.name and "-" in ch.name:
                 return await interaction.response.send_message(f"כבר יש לך פנייה פתוחה: {ch.mention}", ephemeral=True)
 
-        # הגדרת הרשאות בסיסיות (משתמש + הבוט עצמו)
+        # הרשאות
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
         
-        # לולאה שמוסיפה את כל 4 רולי הצוות להרשאות הערוץ
+        # מתן גישה לכל רולי הצוות
         for role_id in STAFF_ROLES_IDS:
             role = guild.get_role(role_id)
             if role:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True)
 
-        # הוספת אדמינים (ליתר ביטחון)
+        # גישה לאדמינים
         for role in guild.roles:
             if role.permissions.administrator:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
@@ -87,7 +104,8 @@ class TicketDropdown(discord.ui.Select):
         embed = discord.Embed(
             title=f"פנייה חדשה: {category_value}",
             description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**לצוות:** לסגירת הטיקט הקלידו `!close`.",
-            color=discord.Color.blue()
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
         )
         await channel.send(embed=embed)
         await interaction.response.edit_message(view=TicketSystemView())
@@ -111,15 +129,32 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
+@bot.event
+async def on_member_join(member):
+    initial_role = member.guild.get_role(ROLE_REMOVE_ID)
+    if initial_role:
+        try: await member.add_roles(initial_role)
+        except: pass
+    
+    channel = bot.get_channel(WELCOME_CHANNEL_ID)
+    if channel:
+        count = len(member.guild.members)
+        embed = discord.Embed(
+            title=f"ברוכים הבאים ל-{member.guild.name}!",
+            description=f"היי {member.mention}, ברוך הבא לשרת! אתה החבר ה-{count}.",
+            color=0x7289da
+        )
+        embed.set_thumbnail(url=member.display_avatar.url)
+        await channel.send(embed=embed)
+
 @bot.command()
 async def close(ctx):
-    # בדיקה אם למשתמש יש את אחד מרולי הצוות או שהוא אדמין
     user_roles_ids = [role.id for role in ctx.author.roles]
     is_staff = any(role_id in user_roles_ids for role_id in STAFF_ROLES_IDS)
     is_admin = ctx.author.guild_permissions.administrator
 
     if not (is_admin or is_staff):
-        return await ctx.send("רק צוות מורשה או אדמין יכולים לסגור טיקטים!", delete_after=5)
+        return await ctx.send("רק צוות או אדמין יכולים לסגור טיקטים!", delete_after=5)
     
     if "-" not in ctx.channel.name:
         return await ctx.send("זהו אינו ערוץ טיקט!", delete_after=5)
