@@ -5,11 +5,13 @@ import asyncio
 import os
 from datetime import datetime
 
-# --- הגדרות ה-ID שלך (תחליף ב-ID האמיתי שלך) ---
+# --- הגדרות ה-ID שלך ---
 ROLE_ADD_ID = 1449415392425410662    # רול אזרח
 ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
-LOG_CHANNEL_ID = 1456694146583498792  # ערוץ לוגים של טיקטים
+LOG_CHANNEL_ID = 1456694146583498792  
+# --- חדש: ה-ID של רול הצוות שיוכל לענות בטיקטים (תחליף ב-ID האמיתי) ---
+STAFF_ROLE_ID = 1457029203328368833  
 
 intents = discord.Intents.default()
 intents.members = True
@@ -55,11 +57,19 @@ class TicketDropdown(discord.ui.Select):
             if clean_user_name in ch.name and "-" in ch.name:
                 return await interaction.response.send_message(f"כבר יש לך פנייה פתוחה: {ch.mention}", ephemeral=True)
 
+        # --- עדכון הרשאות הערוץ ---
+        staff_role = guild.get_role(STAFF_ROLE_ID) # שליפת רול הצוות
+        
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
+            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
+        
+        # חדש: הוספת רול הצוות להרשאות הערוץ
+        if staff_role:
+            overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True)
+
         for role in guild.roles:
             if role.permissions.administrator:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
@@ -67,7 +77,7 @@ class TicketDropdown(discord.ui.Select):
         channel = await guild.create_text_channel(ticket_name, overwrites=overwrites)
         embed = discord.Embed(
             title=f"פנייה חדשה: {category_value}",
-            description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**למנהלים:** לסגירת הטיקט הקלידו `!close`.",
+            description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**לצוות:** לסגירת הטיקט הקלידו `!close`.",
             color=discord.Color.blue()
         )
         await channel.send(embed=embed)
@@ -92,27 +102,16 @@ class MyBot(commands.Bot):
 
 bot = MyBot()
 
-@bot.event
-async def on_member_join(member):
-    initial_role = member.guild.get_role(ROLE_REMOVE_ID)
-    if initial_role:
-        try: await member.add_roles(initial_role)
-        except: pass
-    channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        count = len(member.guild.members)
-        embed = discord.Embed(
-            title=f"{member.name} - Welcome",
-            description=f"Hey {member.mention}, Welcome to **{member.guild.name}**! We're **{count}** members now.",
-            color=0x7289da
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-        await channel.send(embed=embed)
-
 @bot.command()
 async def close(ctx):
-    if not ctx.author.guild_permissions.administrator:
-        return await ctx.send("רק אדמין יכול לסגור טיקטים!", delete_after=5)
+    # --- עדכון פקודת הסגירה ---
+    # בודק אם המשתמש הוא אדמין או שיש לו את רול הצוות
+    is_staff = any(role.id == STAFF_ROLE_ID for role in ctx.author.roles)
+    is_admin = ctx.author.guild_permissions.administrator
+
+    if not (is_admin or is_staff):
+        return await ctx.send("רק צוות או אדמין יכולים לסגור טיקטים!", delete_after=5)
+    
     if "-" not in ctx.channel.name:
         return await ctx.send("זהו אינו ערוץ טיקט!", delete_after=5)
 
@@ -127,6 +126,7 @@ async def close(ctx):
     await asyncio.sleep(5)
     await ctx.channel.delete()
 
+# --- שאר הפקודות (ללא שינוי) ---
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_verify(ctx):
@@ -139,11 +139,9 @@ async def setup_ticket(ctx):
     embed = discord.Embed(title="מערכת טיקטים", description="בחר קטגוריה לפתיחת פנייה", color=0x000000)
     await ctx.send(embed=embed, view=TicketSystemView())
 
-# --- הרצה מותאמת ל-Railway ---
 if __name__ == "__main__":
-    # הבוט יחפש משתנה סביבה בשם DISCORD_TOKEN
     token = os.getenv('DISCORD_TOKEN')
     if token:
         bot.run(token)
     else:
-        print("ERROR: No token found! Add DISCORD_TOKEN to Railway Variables.")
+        print("ERROR: No token found!")
