@@ -23,7 +23,6 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-# --- 1. מערכת כפתור האימות ---
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -33,15 +32,13 @@ class VerifyView(View):
         role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
         role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
         try:
-            if role_to_add:
-                await interaction.user.add_roles(role_to_add)
+            if role_to_add: await interaction.user.add_roles(role_to_add)
             if role_to_remove and role_to_remove in interaction.user.roles:
                 await interaction.user.remove_roles(role_to_remove)
             await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
         except:
             await interaction.response.send_message("שגיאה: וודא שהרול של הבוט מעל כולם.", ephemeral=True)
 
-# --- 2. מערכת הטיקטים (Dropdown) ---
 class TicketDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -58,51 +55,42 @@ class TicketDropdown(discord.ui.Select):
         user = interaction.user
         category_value = self.values[0]
         
-        # לוגיקת קידומת לפי רול (SA | , AD | , וכו')
-        prefix = ""
+        # לוגיקת קידומת (מתוקנת לפורמט שדיסקורד מקבל)
+        role_prefix = ""
         user_role_ids = [role.id for role in user.roles]
         
         if 1457032202071314674 in user_role_ids:
-            prefix = "SA | "
+            role_prefix = "sa-"
         elif 1456711448284631253 in user_role_ids:
-            prefix = "AD | "
+            role_prefix = "ad-"
         elif 1457036541254828065 in user_role_ids:
-            prefix = "MOD | "
+            role_prefix = "mod-"
         elif 1457029203328368833 in user_role_ids:
-            prefix = "HP | "
+            role_prefix = "hp-"
 
-        # ניקוי השם ויצירת שם הערוץ
-        # דיסקורד הופך את זה אוטומטית לקטנות ומחליף רווחים במקפים
-        clean_name = f"{prefix}{user.name}".lower().replace(" ", "-")
-        ticket_name = f"{category_value}-{clean_name}"
+        # יצירת שם הערוץ - לדוגמה: שאלה-hp-itay
+        clean_user_name = user.name.lower().replace(" ", "-")
+        ticket_name = f"{category_value}-{role_prefix}{clean_user_name}"
 
-        # בדיקה אם כבר יש טיקט פתוח (לפי שם המשתמש)
         for ch in guild.text_channels:
-            if user.name.lower().replace(" ", "-") in ch.name and "-" in ch.name:
+            if clean_user_name in ch.name and "-" in ch.name:
                 return await interaction.response.send_message(f"כבר יש לך פנייה פתוחה: {ch.mention}", ephemeral=True)
 
-        # הרשאות
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
         
-        # מתן גישה לכל רולי הצוות
         for role_id in STAFF_ROLES_IDS:
             role = guild.get_role(role_id)
             if role:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True)
 
-        # גישה לאדמינים
-        for role in guild.roles:
-            if role.permissions.administrator:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
-
         channel = await guild.create_text_channel(ticket_name, overwrites=overwrites)
         
         embed = discord.Embed(
-            title=f"פנייה חדשה: {category_value}",
+            title=f" פנייה חדשה: {category_value}",
             description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**לצוות:** לסגירת הטיקט הקלידו `!close`.",
             color=discord.Color.blue(),
             timestamp=datetime.now()
@@ -115,7 +103,6 @@ class TicketSystemView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(TicketDropdown())
 
-# --- 3. הגדרות הבוט הראשיות ---
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
@@ -125,27 +112,9 @@ class MyBot(commands.Bot):
         self.add_view(TicketSystemView())
 
     async def on_ready(self):
-        print(f'Logged in as {self.user.name} - System Integrated')
+        print(f'Logged in as {self.user.name}')
 
 bot = MyBot()
-
-@bot.event
-async def on_member_join(member):
-    initial_role = member.guild.get_role(ROLE_REMOVE_ID)
-    if initial_role:
-        try: await member.add_roles(initial_role)
-        except: pass
-    
-    channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        count = len(member.guild.members)
-        embed = discord.Embed(
-            title=f"ברוכים הבאים ל-{member.guild.name}!",
-            description=f"היי {member.mention}, ברוך הבא לשרת! אתה החבר ה-{count}.",
-            color=0x7289da
-        )
-        embed.set_thumbnail(url=member.display_avatar.url)
-        await channel.send(embed=embed)
 
 @bot.command()
 async def close(ctx):
@@ -184,7 +153,4 @@ async def setup_ticket(ctx):
 
 if __name__ == "__main__":
     token = os.getenv('DISCORD_TOKEN')
-    if token:
-        bot.run(token)
-    else:
-        print("ERROR: No token found!")
+    if token: bot.run(token)
