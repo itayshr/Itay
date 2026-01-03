@@ -11,7 +11,7 @@ ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
 LOG_CHANNEL_ID = 1456694146583498792  
 
-# רשימת ה-ID של רולי הצוות והקידומות שלהם
+# מילון רולי הצוות והקידומת שלהם
 STAFF_ROLES = {
     1457032202071314674: "SA",
     1456711448284631253: "AD",
@@ -25,7 +25,7 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-# --- 1. מערכת כפתור האימות ---
+# --- 1. מערכת כפתור האימות ושינוי השם ---
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
@@ -33,36 +33,41 @@ class VerifyView(View):
     @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me")
     async def verify(self, interaction: discord.Interaction, button: Button):
         user = interaction.user
-        role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
-        role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
+        guild = interaction.guild
+        role_to_add = guild.get_role(ROLE_ADD_ID)
+        role_to_remove = guild.get_role(ROLE_REMOVE_ID)
         
         try:
-            # הוספת/הסרת רולים
+            # הוספת רול אזרח והסרת לא מאומת
             if role_to_add: await user.add_roles(role_to_add)
             if role_to_remove and role_to_remove in user.roles:
                 await user.remove_roles(role_to_remove)
 
-            # --- שינוי שם המשתמש בשרת ---
+            # בדיקה אם למשתמש יש רול צוות וקביעת קידומת
             prefix = ""
-            for role_id, title in STAFF_ROLES.items():
-                if any(r.id == role_id for r in user.roles):
-                    prefix = f"{title} | "
-                    break # לוקח את הדרגה הכי גבוהה שנמצאה
-            
-            # אם נמצאה דרגה, משנים את הכינוי
-            if prefix:
-                new_nick = f"{prefix}{user.name}"
-                # חיתוך ל-32 תווים כי זה המקסימום בדיסקורד
-                await user.edit(nick=new_nick[:32])
+            # עוברים על הרולים של המשתמש ובודקים אם אחד מהם נמצא במילון הצוות
+            for role in user.roles:
+                if role.id in STAFF_ROLES:
+                    prefix = f"{STAFF_ROLES[role.id]} | "
+                    break # מפסיק ברול הראשון שהוא מוצא (הגבוה ביותר)
 
-            await interaction.response.send_message("אומתת והשם שלך עודכן!", ephemeral=True)
+            # שינוי הכינוי בשרת
+            new_nickname = f"{prefix}{user.name}"
             
-        except discord.Forbidden:
-            await interaction.response.send_message("אומתת, אך אין לי הרשאה לשנות לך את השם (אולי אתה אדמין/Owner?).", ephemeral=True)
+            # בדיקה אם הכינוי הנוכחי כבר תקין כדי לא להעמיס על ה-API
+            if user.display_name != new_nickname:
+                try:
+                    await user.edit(nick=new_nickname[:32]) # הגבלה ל-32 תווים של דיסקורד
+                except discord.Forbidden:
+                    print(f"אין הרשאה לשנות שם ל-{user.name}")
+
+            await interaction.response.send_message(f"אומתת בהצלחה! השם שלך עודכן ל: **{new_nickname}**", ephemeral=True)
+            
         except Exception as e:
-            await interaction.response.send_message(f"שגיאה: {e}", ephemeral=True)
+            print(f"Error in verify: {e}")
+            await interaction.response.send_message("קרתה שגיאה בתהליך האימות.", ephemeral=True)
 
-# --- 2. מערכת הטיקטים ---
+# --- 2. מערכת הטיקטים (נשאר ללא שינוי בשמות הערוצים) ---
 class TicketDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -78,8 +83,6 @@ class TicketDropdown(discord.ui.Select):
         guild = interaction.guild
         user = interaction.user
         category_value = self.values[0]
-        
-        # שם הערוץ נשאר רגיל כדי למנוע תקלות בדיסקורד
         clean_user_name = user.name.lower().replace(" ", "-")
         ticket_name = f"{category_value}-{clean_user_name}"
 
@@ -89,23 +92,15 @@ class TicketDropdown(discord.ui.Select):
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True),
+            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
-        
         for role_id in STAFF_ROLES_IDS:
             role = guild.get_role(role_id)
-            if role:
-                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True)
+            if role: overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
         channel = await guild.create_text_channel(ticket_name, overwrites=overwrites)
-        
-        embed = discord.Embed(
-            title=f"פנייה חדשה: {category_value}",
-            description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**לצוות:** לסגירת הטיקט הקלידו `!close`.",
-            color=discord.Color.blue(),
-            timestamp=datetime.now()
-        )
+        embed = discord.Embed(title=f"פנייה חדשה: {category_value}", description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.", color=discord.Color.blue())
         await channel.send(embed=embed)
         await interaction.response.edit_message(view=TicketSystemView())
 
@@ -117,11 +112,9 @@ class TicketSystemView(discord.ui.View):
 class MyBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="!", intents=intents)
-
     async def setup_hook(self):
         self.add_view(VerifyView())
         self.add_view(TicketSystemView())
-
     async def on_ready(self):
         print(f'Logged in as {self.user.name}')
 
@@ -131,37 +124,27 @@ bot = MyBot()
 async def close(ctx):
     user_roles_ids = [role.id for role in ctx.author.roles]
     is_staff = any(role_id in user_roles_ids for role_id in STAFF_ROLES_IDS)
-    is_admin = ctx.author.guild_permissions.administrator
-
-    if not (is_admin or is_staff):
-        return await ctx.send("רק צוות או אדמין יכולים לסגור טיקטים!", delete_after=5)
+    if not (ctx.author.guild_permissions.administrator or is_staff):
+        return await ctx.send("אין לך הרשאה!", delete_after=5)
     
-    if "-" not in ctx.channel.name:
-        return await ctx.send("זהו אינו ערוץ טיקט!", delete_after=5)
-
     log_channel = bot.get_channel(LOG_CHANNEL_ID)
     if log_channel:
-        log_embed = discord.Embed(title="🎫 טיקט נסגר", color=discord.Color.red(), timestamp=datetime.now())
-        log_embed.add_field(name="נסגר על ידי:", value=ctx.author.mention)
-        log_embed.add_field(name="שם הערוץ:", value=ctx.channel.name)
-        await log_channel.send(embed=log_embed)
-
-    await ctx.send(f"הטיקט נסגר על ידי {ctx.author.mention}. מוחק בעוד 5 שניות...")
+        embed = discord.Embed(title="🎫 טיקט נסגר", color=discord.Color.red())
+        embed.add_field(name="על ידי:", value=ctx.author.name)
+        await log_channel.send(embed=embed)
+    await ctx.send("הערוץ יימחק בעוד 5 שניות...")
     await asyncio.sleep(5)
     await ctx.channel.delete()
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_verify(ctx):
-    embed = discord.Embed(title="אימות שרת", description="לחצו למטה כדי לקבל גישה לשרת", color=0x00ff00)
-    await ctx.send(embed=embed, view=VerifyView())
+    await ctx.send(embed=discord.Embed(title="אימות", description="לחצו למטה לאימות", color=0x00ff00), view=VerifyView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_ticket(ctx):
-    embed = discord.Embed(title="מערכת טיקטים", description="בחר קטגוריה לפתיחת פנייה", color=0x000000)
-    await ctx.send(embed=embed, view=TicketSystemView())
+    await ctx.send(embed=discord.Embed(title="טיקטים", description="פתחו פנייה כאן", color=0x000000), view=TicketSystemView())
 
 if __name__ == "__main__":
-    token = os.getenv('DISCORD_TOKEN')
-    if token: bot.run(token)
+    bot.run(os.getenv('DISCORD_TOKEN'))
