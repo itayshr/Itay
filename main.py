@@ -1,12 +1,13 @@
 import discord
 from discord.ext import commands
-from discord.ui import View, Select
+from discord.ui import Button, View, Select
 import asyncio
 import os
 from datetime import datetime
 
 # --- הגדרות ה-ID שלך ---
-ROLE_ADD_ID = 1449415392425410662    # רול אזרח (יינתן אוטומטית בכניסה)
+ROLE_ADD_ID = 1449415392425410662    # רול אזרח
+ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
 LOG_CHANNEL_ID = 1456694146583498792  
 
@@ -24,69 +25,44 @@ intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
-# --- פונקציה עזר לעדכון שם (לשימוש חוזר) ---
-async def update_member_nickname(member):
+# --- פונקציית עזר לעדכון שם צוות ---
+async def update_staff_nickname(member):
     prefix = ""
-    # עוברים על הרולים של המשתמש ובודקים אם אחד מהם נמצא במילון הצוות
+    # בודק אם למשתמש יש אחד מרולי הצוות
     for role in member.roles:
         if role.id in STAFF_ROLES:
             prefix = f"{STAFF_ROLES[role.id]} | "
             break 
     
-    new_nickname = f"{prefix}{member.name}"
-    
-    # משנה רק אם השם שונה מהנוכחי וזה לא ה-Owner
-    if member.display_name != new_nickname:
-        try:
-            await member.edit(nick=new_nickname[:32])
-        except discord.Forbidden:
-            pass # אין הרשאה לשנות שם (למשל אדמין גבוה יותר)
+    if prefix:
+        new_nickname = f"{prefix}{member.name}"
+        # משנה רק אם הכינוי הנוכחי לא תואם וזה לא הבעלים (Owner)
+        if member.display_name != new_nickname:
+            try:
+                await member.edit(nick=new_nickname[:32])
+            except discord.Forbidden:
+                pass # אין הרשאה (הבוט נמוך יותר בהיררכיה או שזה ה-Owner)
 
-# --- הגדרות הבוט ---
-class MyBot(commands.Bot):
+# --- 1. מערכת כפתור האימות (רק נותן רול אזרח) ---
+class VerifyView(View):
     def __init__(self):
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(timeout=None)
 
-    async def setup_hook(self):
-        self.add_view(TicketSystemView())
-
-    async def on_ready(self):
-        print(f'Logged in as {self.user.name} - Auto Nickname Active')
-
-bot = MyBot()
-
-# --- אירועים (Events) ---
-
-@bot.event
-async def on_member_join(member):
-    # 1. מתן רול אזרח אוטומטי (בלי אימות)
-    role = member.guild.get_role(ROLE_ADD_ID)
-    if role:
+    @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me")
+    async def verify(self, interaction: discord.Interaction, button: Button):
+        user = interaction.user
+        role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
+        role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
+        
         try:
-            await member.add_roles(role)
+            if role_to_add: await user.add_roles(role_to_add)
+            if role_to_remove and role_to_remove in user.roles:
+                await user.remove_roles(role_to_remove)
+            await interaction.response.send_message("אומתת בהצלחה וקיבלת רול אזרח!", ephemeral=True)
         except:
-            pass
+            await interaction.response.send_message("שגיאה במתן הרול.", ephemeral=True)
 
-    # 2. עדכון שם ראשוני אם הוא איש צוות
-    await update_member_nickname(member)
-    
-    # 3. הודעת ברוך הבא
-    channel = bot.get_channel(WELCOME_CHANNEL_ID)
-    if channel:
-        count = len(member.guild.members)
-        embed = discord.Embed(title=f"ברוכים הבאים!", description=f"היי {member.mention}, ברוך הבא לשרת! אתה החבר ה-{count}.", color=0x7289da)
-        await channel.send(embed=embed)
-
-@bot.event
-async def on_message(message):
-    # בכל פעם שמישהו כותב הודעה, הבוט מוודא שהשם שלו תקין לפי הרול
-    if message.author.bot or not message.guild:
-        return
-    
-    await update_member_nickname(message.author)
-    await bot.process_commands(message)
-
-# --- מערכת הטיקטים (Dropdown) ---
+# --- 2. מערכת הטיקטים ---
 class TicketDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -126,7 +102,37 @@ class TicketSystemView(discord.ui.View):
         super().__init__(timeout=None)
         self.add_item(TicketDropdown())
 
-# --- פקודות ---
+# --- הגדרות הבוט ואירועים ---
+class MyBot(commands.Bot):
+    def __init__(self):
+        super().__init__(command_prefix="!", intents=intents)
+
+    async def setup_hook(self):
+        self.add_view(VerifyView())
+        self.add_view(TicketSystemView())
+
+    async def on_ready(self):
+        print(f'Logged in as {self.user.name}')
+
+bot = MyBot()
+
+@bot.event
+async def on_message(message):
+    if message.author.bot or not message.guild:
+        return
+    
+    # ברגע שאיש צוות כותב הודעה, הבוט בודק ומתקן לו את השם אם צריך
+    await update_staff_nickname(message.author)
+    await bot.process_commands(message)
+
+@bot.event
+async def on_member_join(member):
+    # רול התחלתי
+    initial_role = member.guild.get_role(ROLE_REMOVE_ID)
+    if initial_role:
+        try: await member.add_roles(initial_role)
+        except: pass
+
 @bot.command()
 async def close(ctx):
     user_roles_ids = [role.id for role in ctx.author.roles]
@@ -137,6 +143,11 @@ async def close(ctx):
     await ctx.send("הערוץ יימחק בעוד 5 שניות...")
     await asyncio.sleep(5)
     await ctx.channel.delete()
+
+@bot.command()
+@commands.has_permissions(administrator=True)
+async def setup_verify(ctx):
+    await ctx.send(embed=discord.Embed(title="אימות שרת", description="לחצו למטה כדי לקבל רול אזרח", color=0x00ff00), view=VerifyView())
 
 @bot.command()
 @commands.has_permissions(administrator=True)
