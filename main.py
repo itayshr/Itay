@@ -10,8 +10,14 @@ ROLE_ADD_ID = 1449415392425410662    # רול אזרח
 ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
 LOG_CHANNEL_ID = 1456694146583498792  
-# --- חדש: ה-ID של רול הצוות שיוכל לענות בטיקטים (תחליף ב-ID האמיתי) ---
-STAFF_ROLE_ID = 1457029203328368833  
+
+# רשימת ה-ID של 4 הרולים של הצוות (תחליף ב-ID האמיתיים שלך)
+STAFF_ROLES_IDS = [
+    1457032202071314674, # רול צוות 1
+    1456711448284631253, # רול צוות 2
+    1457036541254828065, # רול צוות 3
+    1457029203328368833  # רול צוות 4
+]
 
 intents = discord.Intents.default()
 intents.members = True
@@ -27,7 +33,8 @@ class VerifyView(View):
         role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
         role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
         try:
-            await interaction.user.add_roles(role_to_add)
+            if role_to_add:
+                await interaction.user.add_roles(role_to_add)
             if role_to_remove and role_to_remove in interaction.user.roles:
                 await interaction.user.remove_roles(role_to_remove)
             await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
@@ -57,24 +64,26 @@ class TicketDropdown(discord.ui.Select):
             if clean_user_name in ch.name and "-" in ch.name:
                 return await interaction.response.send_message(f"כבר יש לך פנייה פתוחה: {ch.mention}", ephemeral=True)
 
-        # --- עדכון הרשאות הערוץ ---
-        staff_role = guild.get_role(STAFF_ROLE_ID) # שליפת רול הצוות
-        
+        # הגדרת הרשאות בסיסיות (משתמש + הבוט עצמו)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
-            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True),
+            user: discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
         }
         
-        # חדש: הוספת רול הצוות להרשאות הערוץ
-        if staff_role:
-            overwrites[staff_role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True)
+        # לולאה שמוסיפה את כל 4 רולי הצוות להרשאות הערוץ
+        for role_id in STAFF_ROLES_IDS:
+            role = guild.get_role(role_id)
+            if role:
+                overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True, attach_files=True, embed_links=True)
 
+        # הוספת אדמינים (ליתר ביטחון)
         for role in guild.roles:
             if role.permissions.administrator:
                 overwrites[role] = discord.PermissionOverwrite(read_messages=True, send_messages=True)
 
         channel = await guild.create_text_channel(ticket_name, overwrites=overwrites)
+        
         embed = discord.Embed(
             title=f"פנייה חדשה: {category_value}",
             description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**לצוות:** לסגירת הטיקט הקלידו `!close`.",
@@ -104,13 +113,13 @@ bot = MyBot()
 
 @bot.command()
 async def close(ctx):
-    # --- עדכון פקודת הסגירה ---
-    # בודק אם המשתמש הוא אדמין או שיש לו את רול הצוות
-    is_staff = any(role.id == STAFF_ROLE_ID for role in ctx.author.roles)
+    # בדיקה אם למשתמש יש את אחד מרולי הצוות או שהוא אדמין
+    user_roles_ids = [role.id for role in ctx.author.roles]
+    is_staff = any(role_id in user_roles_ids for role_id in STAFF_ROLES_IDS)
     is_admin = ctx.author.guild_permissions.administrator
 
     if not (is_admin or is_staff):
-        return await ctx.send("רק צוות או אדמין יכולים לסגור טיקטים!", delete_after=5)
+        return await ctx.send("רק צוות מורשה או אדמין יכולים לסגור טיקטים!", delete_after=5)
     
     if "-" not in ctx.channel.name:
         return await ctx.send("זהו אינו ערוץ טיקט!", delete_after=5)
@@ -126,7 +135,6 @@ async def close(ctx):
     await asyncio.sleep(5)
     await ctx.channel.delete()
 
-# --- שאר הפקודות (ללא שינוי) ---
 @bot.command()
 @commands.has_permissions(administrator=True)
 async def setup_verify(ctx):
