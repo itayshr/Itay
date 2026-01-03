@@ -11,34 +11,58 @@ ROLE_REMOVE_ID = 1449424721862201414 # רול Unverified
 WELCOME_CHANNEL_ID = 1449406834032250931
 LOG_CHANNEL_ID = 1456694146583498792  
 
-# רשימת ה-ID של רולי הצוות
-STAFF_ROLES_IDS = [
-    1457032202071314674, # sa
-    1456711448284631253, # ad
-    1457036541254828065, # mod
-    1457029203328368833  # hp
-]
+# רשימת ה-ID של רולי הצוות והקידומות שלהם
+STAFF_ROLES = {
+    1457032202071314674: "SA",
+    1456711448284631253: "AD",
+    1457036541254828065: "MOD",
+    1457029203328368833: "HP"
+}
+
+STAFF_ROLES_IDS = list(STAFF_ROLES.keys())
 
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
 
+# --- 1. מערכת כפתור האימות ---
 class VerifyView(View):
     def __init__(self):
         super().__init__(timeout=None)
 
     @discord.ui.button(label="לחץ לאימות ✅", style=discord.ButtonStyle.green, custom_id="verify_me")
     async def verify(self, interaction: discord.Interaction, button: Button):
+        user = interaction.user
         role_to_add = interaction.guild.get_role(ROLE_ADD_ID)
         role_to_remove = interaction.guild.get_role(ROLE_REMOVE_ID)
+        
         try:
-            if role_to_add: await interaction.user.add_roles(role_to_add)
-            if role_to_remove and role_to_remove in interaction.user.roles:
-                await interaction.user.remove_roles(role_to_remove)
-            await interaction.response.send_message("אומתת בהצלחה!", ephemeral=True)
-        except:
-            await interaction.response.send_message("שגיאה: וודא שהרול של הבוט מעל כולם.", ephemeral=True)
+            # הוספת/הסרת רולים
+            if role_to_add: await user.add_roles(role_to_add)
+            if role_to_remove and role_to_remove in user.roles:
+                await user.remove_roles(role_to_remove)
 
+            # --- שינוי שם המשתמש בשרת ---
+            prefix = ""
+            for role_id, title in STAFF_ROLES.items():
+                if any(r.id == role_id for r in user.roles):
+                    prefix = f"{title} | "
+                    break # לוקח את הדרגה הכי גבוהה שנמצאה
+            
+            # אם נמצאה דרגה, משנים את הכינוי
+            if prefix:
+                new_nick = f"{prefix}{user.name}"
+                # חיתוך ל-32 תווים כי זה המקסימום בדיסקורד
+                await user.edit(nick=new_nick[:32])
+
+            await interaction.response.send_message("אומתת והשם שלך עודכן!", ephemeral=True)
+            
+        except discord.Forbidden:
+            await interaction.response.send_message("אומתת, אך אין לי הרשאה לשנות לך את השם (אולי אתה אדמין/Owner?).", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"שגיאה: {e}", ephemeral=True)
+
+# --- 2. מערכת הטיקטים ---
 class TicketDropdown(discord.ui.Select):
     def __init__(self):
         options = [
@@ -55,22 +79,9 @@ class TicketDropdown(discord.ui.Select):
         user = interaction.user
         category_value = self.values[0]
         
-        # לוגיקת קידומת (מתוקנת לפורמט שדיסקורד מקבל)
-        role_prefix = ""
-        user_role_ids = [role.id for role in user.roles]
-        
-        if 1457032202071314674 in user_role_ids:
-            role_prefix = "sa-"
-        elif 1456711448284631253 in user_role_ids:
-            role_prefix = "ad-"
-        elif 1457036541254828065 in user_role_ids:
-            role_prefix = "mod-"
-        elif 1457029203328368833 in user_role_ids:
-            role_prefix = "hp-"
-
-        # יצירת שם הערוץ - לדוגמה: שאלה-hp-itay
+        # שם הערוץ נשאר רגיל כדי למנוע תקלות בדיסקורד
         clean_user_name = user.name.lower().replace(" ", "-")
-        ticket_name = f"{category_value}-{role_prefix}{clean_user_name}"
+        ticket_name = f"{category_value}-{clean_user_name}"
 
         for ch in guild.text_channels:
             if clean_user_name in ch.name and "-" in ch.name:
@@ -90,7 +101,7 @@ class TicketDropdown(discord.ui.Select):
         channel = await guild.create_text_channel(ticket_name, overwrites=overwrites)
         
         embed = discord.Embed(
-            title=f" פנייה חדשה: {category_value}",
+            title=f"פנייה חדשה: {category_value}",
             description=f"שלום {user.mention}, צוות התמיכה יעזור לך בהקדם.\n\n**לצוות:** לסגירת הטיקט הקלידו `!close`.",
             color=discord.Color.blue(),
             timestamp=datetime.now()
