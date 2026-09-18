@@ -3,51 +3,101 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>מסוף קשר - תדרים</title>
-  <!-- ספריית תקשורת בזמן אמת -->
+  <title>WhatsApp Radio</title>
   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, monospace; }
-    body { background-color: #0d1117; color: #00ff66; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
-    .container { background: #161b22; border: 2px solid #00ff66; border-radius: 12px; width: 100%; max-width: 480px; padding: 25px; box-shadow: 0 0 20px rgba(0,255,102,0.15); }
-    h1 { text-align: center; margin-bottom: 20px; font-size: 1.5rem; text-shadow: 0 0 8px #00ff66; }
-    .card { display: flex; flex-direction: column; gap: 15px; }
-    input, button { padding: 12px; border-radius: 6px; border: 1px solid #00ff66; background: #0d1117; color: #00ff66; font-size: 1rem; outline: none; }
-    input::placeholder { color: #007733; }
-    button { background: #00ff66; color: #0d1117; font-weight: bold; cursor: pointer; transition: 0.2s; }
-    button:hover { background: #00cc52; box-shadow: 0 0 10px #00ff66; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: #0b141a; color: #e9edef; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    
+    .app-container { background: #111b21; border: 1px solid #222d34; border-radius: 12px; width: 100%; max-width: 450px; height: 90vh; display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+    
+    /* מסך התחברות */
+    .setup-screen { padding: 30px 20px; display: flex; flex-direction: column; gap: 20px; justify-content: center; height: 100%; }
+    .setup-screen h2 { text-align: center; color: #00a884; font-size: 1.6rem; margin-bottom: 10px; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .form-group label { font-size: 0.9rem; color: #8696a0; }
+    input { padding: 14px; border-radius: 8px; border: 1px solid #2a3942; background: #202c33; color: #e9edef; font-size: 1rem; outline: none; }
+    input:focus { border-color: #00a884; }
+    button.btn-primary { padding: 14px; border-radius: 8px; border: none; background: #00a884; color: #111b21; font-size: 1rem; font-weight: bold; cursor: pointer; transition: 0.2s; }
+    button.btn-primary:hover { background: #029071; }
+
+    /* ראש הצ'אט (WhatsApp Header) */
+    .chat-header { background: #202c33; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #222d34; }
+    .user-info { display: flex; align-items: center; gap: 12px; }
+    .avatar { width: 40px; height: 40px; background: #00a884; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: #111b21; font-size: 1.2rem; }
+    .header-text { display: flex; flex-direction: column; }
+    .header-text .title { font-weight: bold; font-size: 1.05rem; }
+    .header-text .status { font-size: 0.8rem; color: #8696a0; }
+    .btn-disconnect { background: transparent; border: none; color: #f15c6d; font-size: 0.85rem; cursor: pointer; padding: 6px 10px; border-radius: 6px; }
+    .btn-disconnect:hover { background: rgba(241, 92, 109, 0.1); }
+
+    /* אזור ההודעות */
+    .chat-body { flex: 1; background: #0b141a; background-image: radial-gradient(#111b21 1px, transparent 0); background-size: 16px 16px; padding: 16px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+    
+    /* בועית הודעה */
+    .message-wrapper { display: flex; flex-direction: column; max-width: 80%; }
+    .message-wrapper.self { align-self: flex-start; }
+    .message-wrapper.other { align-self: flex-end; }
+    
+    .msg-bubble { padding: 8px 12px; border-radius: 8px; font-size: 0.95rem; position: relative; word-break: break-word; display: flex; flex-direction: column; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.3); }
+    .message-wrapper.self .msg-bubble { background: #005c4b; color: #e9edef; border-top-right-radius: 0; }
+    .message-wrapper.other .msg-bubble { background: #202c33; color: #e9edef; border-top-left-radius: 0; }
+    
+    .msg-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 0.75rem; color: #8696a0; margin-bottom: 2px; }
+    .message-wrapper.self .msg-header { color: #25d366; }
+    
+    .msg-content { white-space: pre-wrap; font-size: 0.95rem; line-height: 1.4; }
+    
+    /* כפתור העתקה */
+    .copy-btn { background: rgba(255,255,255,0.1); border: none; color: #e9edef; cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; align-self: flex-end; transition: 0.2s; }
+    .copy-btn:hover { background: rgba(255,255,255,0.2); }
+    .copy-btn.copied { background: #00a884; color: #111b21; }
+
+    /* סרגל הקלדה */
+    .chat-footer { background: #202c33; padding: 10px 12px; display: flex; align-items: center; gap: 8px; }
+    .chat-footer input { flex: 1; border-radius: 8px; border: none; background: #2a3942; padding: 12px 16px; font-size: 0.95rem; }
+    .send-btn { background: #00a884; border: none; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; color: #111b21; font-weight: bold; font-size: 1.1rem; flex-shrink: 0; }
+    .send-btn:hover { background: #029071; }
+
     .hidden { display: none !important; }
-    .freq-display { text-align: center; font-size: 2.2rem; background: #000; padding: 15px; border-radius: 8px; border: 1px solid #00ff66; color: #00ff66; text-shadow: 0 0 10px #00ff66; font-family: monospace; }
-    .chat-box { height: 260px; background: #000; border: 1px solid #005522; border-radius: 6px; padding: 10px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-    .msg { background: #0a2213; padding: 8px 12px; border-radius: 6px; border-right: 3px solid #00ff66; word-break: break-word; font-size: 0.95rem; }
-    .msg.self { border-right: 3px solid #0088ff; background: #0a192f; color: #66b3ff; }
-    .status { text-align: center; font-size: 0.85rem; color: #00aa44; }
   </style>
 </head>
 <body>
 
-<div class="container">
-  <h1>📡 מסוף קשר - תדרים</h1>
-
-  <!-- מסך 1: בחירת תדר -->
-  <div id="setup-screen" class="card">
-    <label>הזן מספר תדר (למשל 104.5):</label>
-    <input type="number" id="freq-input" step="0.1" placeholder="תדר..." value="104.5">
-    <label>כינוי במכשיר הקשר:</label>
-    <input type="text" id="username-input" placeholder="שם משתמש" value="יחידה 1">
-    <button onclick="connectToFrequency()">התחבר לתדר</button>
+<div class="app-container">
+  <!-- מסך 1: הגדרת תדר -->
+  <div id="setup-screen" class="setup-screen">
+    <h2>💬 WhatsApp Radio</h2>
+    <div class="form-group">
+      <label>מספר תדר (חדר תקשורת):</label>
+      <input type="number" id="freq-input" step="0.1" value="104.5">
+    </div>
+    <div class="form-group">
+      <label>שם תצוגה:</label>
+      <input type="text" id="username-input" value="המחשב שלי">
+    </div>
+    <button class="btn-primary" onclick="connectToFrequency()">התחבר לתדר</button>
   </div>
 
-  <!-- מסך 2: שידור וקליטה -->
-  <div id="radio-screen" class="card hidden">
-    <div class="freq-display">MHz <span id="current-freq">104.5</span></div>
-    <div class="status" id="status-text">מתחבר לרשת...</div>
-    <div class="chat-box" id="messages"></div>
-    <div style="display: flex; gap: 8px;">
-      <input type="text" id="message-input" placeholder="הקלד תשדורת..." style="flex: 1;" onkeypress="if(event.key==='Enter') sendMessage()">
-      <button onclick="sendMessage()">שדר</button>
+  <!-- מסך 2: צ'אט וואטסאפ -->
+  <div id="radio-screen" class="hidden" style="display: flex; flex-direction: column; height: 100%;">
+    <div class="chat-header">
+      <div class="user-info">
+        <div class="avatar" id="avatar-icon">📻</div>
+        <div class="header-text">
+          <span class="title">תדר <span id="current-freq">104.5</span></span>
+          <span class="status" id="status-text">מתחבר...</span>
+        </div>
+      </div>
+      <button class="btn-disconnect" onclick="disconnect()">יציאה</button>
     </div>
-    <button onclick="disconnect()" style="background: #ff3333; color: white; border-color: #ff3333;">נתק תדר</button>
+
+    <div class="chat-body" id="messages"></div>
+
+    <div class="chat-footer">
+      <input type="text" id="message-input" placeholder="הקלד הודעה או פקודה..." onkeypress="if(event.key==='Enter') sendMessage()">
+      <button class="send-btn" onclick="sendMessage()">➔</button>
+    </div>
   </div>
 </div>
 
@@ -60,18 +110,16 @@
     const freq = document.getElementById('freq-input').value.trim();
     myName = document.getElementById('username-input').value.trim() || "אנונימי";
 
-    if (!freq) return alert("נא להזין תדר תקין!");
+    if (!freq) return alert("נא להזין תדר!");
 
-    // הגדרת ערוץ השידור לפי מספר התדר
-    currentChannel = `radio/freq/${freq.replace('.', '_')}`;
+    currentChannel = `whatsapp/freq/${freq.replace('.', '_')}`;
     document.getElementById('current-freq').innerText = freq;
-    document.getElementById('status-text').innerText = "מתחבר לתדר...";
+    document.getElementById('status-text').innerText = "מתחבר לרשת...";
 
-    // התחברות לשרת תמיכה בזמן אמת בחינם over WebSockets
     client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
 
     client.on('connect', () => {
-      document.getElementById('status-text').innerText = "🟢 מחובר ומאזין לתדר";
+      document.getElementById('status-text').innerText = "מחובר (מקוון)";
       client.subscribe(currentChannel);
       document.getElementById('setup-screen').classList.add('hidden');
       document.getElementById('radio-screen').classList.remove('hidden');
@@ -82,18 +130,18 @@
         const data = JSON.parse(message.toString());
         addMessage(data.sender, data.text, data.sender === myName);
       } catch (e) {
-        console.error("שגיאה בקבלת הנתונים", e);
+        console.error(e);
       }
     });
 
     client.on('error', () => {
-      document.getElementById('status-text').innerText = "🔴 שגיאת תקשורת";
+      document.getElementById('status-text').innerText = "שגיאת חיבור";
     });
   }
 
   function sendMessage() {
     const input = document.getElementById('message-input');
-    const text = input.value.trim();
+    const text = input.value;
     if (!text || !client) return;
 
     const payload = JSON.stringify({ sender: myName, text: text });
@@ -103,11 +151,44 @@
 
   function addMessage(sender, text, isSelf) {
     const box = document.getElementById('messages');
-    const msgDiv = document.createElement('div');
-    msgDiv.className = `msg ${isSelf ? 'self' : ''}`;
-    msgDiv.innerHTML = `<strong>${sender}:</strong> ${text}`;
-    box.appendChild(msgDiv);
+    
+    const wrapper = document.createElement('div');
+    wrapper.className = `message-wrapper ${isSelf ? 'self' : 'other'}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = 'msg-bubble';
+
+    const header = document.createElement('div');
+    header.className = 'msg-header';
+    header.innerHTML = `<span>${sender}</span>`;
+
+    const content = document.createElement('div');
+    content.className = 'msg-content';
+    content.innerText = text;
+
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'copy-btn';
+    copyBtn.innerHTML = '📋 העתק';
+    copyBtn.onclick = () => copyToClipboard(text, copyBtn);
+
+    bubble.appendChild(header);
+    bubble.appendChild(content);
+    bubble.appendChild(copyBtn);
+    wrapper.appendChild(bubble);
+
+    box.appendChild(wrapper);
     box.scrollTop = box.scrollHeight;
+  }
+
+  function copyToClipboard(text, btnElement) {
+    navigator.clipboard.writeText(text).then(() => {
+      btnElement.innerHTML = '✓ הועתק!';
+      btnElement.classList.add('copied');
+      setTimeout(() => {
+        btnElement.innerHTML = '📋 העתק';
+        btnElement.classList.remove('copied');
+      }, 2000);
+    });
   }
 
   function disconnect() {
